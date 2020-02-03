@@ -6,7 +6,7 @@ namespace remote_base {
 
 static const char *TAG = "remote.rc_switch";
 
-RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
+RCSwitchBase rc_switch_protocols[10] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
                                        RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),
                                        RCSwitchBase(650, 6500, 650, 1300, 1300, 650, false),
                                        RCSwitchBase(3000, 7100, 400, 1100, 900, 600, false),
@@ -14,17 +14,22 @@ RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
                                        RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
                                        RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
                                        RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
-                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
+                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250, false),
+                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250, false, 250, 10000)};
 
 RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
-                           uint32_t one_high, uint32_t one_low, bool inverted)
+                           uint32_t one_high, uint32_t one_low, bool inverted, uint32_t pulse_high = 0, 
+                           uint32_t pulse_low = 0, bool sync_first = false)
     : sync_high_(sync_high),
       sync_low_(sync_low),
       zero_high_(zero_high),
       zero_low_(zero_low),
       one_high_(one_high),
       one_low_(one_low),
-      inverted_(inverted) {}
+      inverted_(inverted),
+      pause_high_(pulse_high),
+      pause_low_(pulse_low),
+      sync_first_(sync_first) {}
 
 void RCSwitchBase::one(RemoteTransmitData *dst) const {
   if (!this->inverted_) {
@@ -53,15 +58,29 @@ void RCSwitchBase::sync(RemoteTransmitData *dst) const {
     dst->mark(this->sync_low_);
   }
 }
+void RCSwitchBase::pause(RemoteTransmitData *dst) const {
+  if (!this->inverted_) {
+    dst->mark(this->pause_high_);
+    dst->space(this->pause_low_);
+  } else {
+    dst->space(this->pause_high_);
+    dst->mark(this->pause_low_);
+  }
+}
 void RCSwitchBase::transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const {
   dst->set_carrier_frequency(0);
+  if (this->sync_first_)
+    this->sync(dst);
   for (int16_t i = len - 1; i >= 0; i--) {
     if (code & ((uint64_t) 1 << i))
       this->one(dst);
     else
       this->zero(dst);
   }
-  this->sync(dst);
+  if (!this->sync_first_)
+    this->sync(dst);
+  if (this->pause_high_ + this->pause_low_ > 0)
+    this->pause(dst);
 }
 
 bool RCSwitchBase::expect_one(RemoteReceiveData &src) const {
