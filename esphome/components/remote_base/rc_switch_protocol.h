@@ -53,6 +53,7 @@ class RCSwitchBase {
   bool inverted_{};
   uint32_t pause_high_{};
   uint32_t pause_low_{};
+  uint32_t sync_first_{};  
 };
 
 extern RCSwitchBase rc_switch_protocols[10];
